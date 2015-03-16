@@ -195,7 +195,7 @@ createSwitchPlan ids =
     plan 
   where
     signed = switchTargetsSigned ids
-    (range, m, wrap) = addRange ids
+    (range, m, wrap) = addRange signed ids
     pieces = concatMap breakTooSmall $ splitAtHoles 10 m
     flatPlan = findSingleValues $ wrap $ mkFlatSwitchPlan signed (switchTargetsDefault ids) range pieces
     plan = buildTree signed $ flatPlan
@@ -207,26 +207,29 @@ createSwitchPlan ids =
 
 -- All switch targets surviving this stage needs a range. This adds the range,
 -- together with the neccessary branching.
-addRange :: SwitchTargets ->
+addRange :: Bool -> SwitchTargets ->
     ((Integer, Integer), M.Map Integer Label, FlatSwitchPlan -> FlatSwitchPlan)
 
 -- There is a range, nothing to do
-addRange (SwitchTargets _ (Just r) _ m) = (r, m, id)
+addRange _ (SwitchTargets _ (Just r) _ m) = (r, m, id)
 
 -- There is no range, but also no default. We can set the range
 -- to whatever is found in the map
-addRange (SwitchTargets _ Nothing Nothing m) = ((lo,hi), m, id)
+addRange _ (SwitchTargets _ Nothing Nothing m) = ((lo,hi), m, id)
   where (lo,_) = M.findMin m
         (hi,_) = M.findMax m
 
--- No range, but a default. Create a range, but also emit SwitchPlans for outside the range
-addRange (SwitchTargets _ Nothing (Just l) m)
+-- No range, but a default. Create a range, but also emit SwitchPlans for
+-- outside the range.
+addRange signed (SwitchTargets _ Nothing (Just l) m)
     = ( (lo,hi)
       , m
-      , \plan -> (Unconditionally l, lo) `consSL` plan `snocSL` (hi+1, Unconditionally l)
+      , \plan -> lower_chunk plan `snocSL` (hi+1, Unconditionally l)
       )
   where (lo,_) = M.findMin m
         (hi,_) = M.findMax m
+        lower_chunk = if not signed && lo == 0 then id else
+             ((Unconditionally l, lo) `consSL`)
 
 
 ---
