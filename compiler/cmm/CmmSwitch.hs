@@ -127,10 +127,37 @@ switchTargetsToTable :: SwitchTargets -> (Int, [Maybe Label])
 switchTargetsToTable (SwitchTargets _ Nothing _mbdef _branches)
     = pprPanic "switchTargetsToTable" empty
 switchTargetsToTable (SwitchTargets _ (Just (lo,hi)) mbdef branches)
-    = (fromIntegral (-lo), [ labelFor i | i <- [lo..hi] ])
+    = (fromIntegral (-start), [ labelFor i | i <- [start..hi] ])
   where
     labelFor i = case M.lookup i branches of Just l -> Just l
                                              Nothing -> mbdef
+    start | lo >= 0 && lo < 2 = 0  -- See Note [Jump Table Offset]
+          | otherwise         = lo
+
+-- Note [Jump Table Offset]
+-- ~~~~~~~~~~~~~~~~~~~~~~~~
+--
+-- Usually, the code for a jump table starting at x will first subtract x from
+-- the value, to avoid a large amount of empty entries. But if x is very small,
+-- the extra entries are no worse than the subtraction in terms of code size, and
+-- not having to do the subtraction is quicker.
+--
+-- I.e. instead of
+--     _u20N:
+--             leaq -1(%r14),%rax
+--             jmp *_n20R(,%rax,8)
+--     _n20R:
+--             .quad   _c20p
+--             .quad   _c20q
+-- do
+--     _u20N:
+--             jmp *_n20Q(,%r14,8)
+--
+--     _n20Q:
+--             .quad   0
+--             .quad   _c20p
+--             .quad   _c20q
+--             .quad   _c20r
 
 switchTargetsToList :: SwitchTargets -> [Label]
 switchTargetsToList (SwitchTargets _ _ mbdef branches)
