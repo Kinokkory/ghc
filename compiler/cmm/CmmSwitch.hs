@@ -42,6 +42,28 @@ import qualified Data.Map as M
 -- statements alone, as we can turn a SwitchTargets value into a nice
 -- switch-statement in LLVM resp. C, and leave the rest to the compiler.
 
+-----------------------------------------------------------------------------
+-- Magic Constants
+--
+-- There are a lot of heuristics here that depend on magic values where it is
+-- hard to determine the "best" value (for whatever that means). These are the
+-- magic values:
+
+-- | Number of consecutive default values allowed in a jump table. If there are
+-- more of them, the jump tables are split.
+-- Currently 10, for no particular good reason.
+maxJumpTableHole :: Integer
+maxJumpTableHole = 10
+
+-- | Minimum size of a jump table. If the number is smaller, the switch is
+-- implemented using conditionals.
+-- Currently 5, because an if-then-else tree of 4 values is nice and compact.
+minJumpTableSize :: Int
+minJumpTableSize = 5
+
+-- | Minimum non-zero offset for a jump table. See Note [Jump Table Offset].
+minJumpTableOffset :: Integer
+minJumpTableOffset = 2
 
 
 -----------------------------------------------------------------------------
@@ -131,8 +153,8 @@ switchTargetsToTable (SwitchTargets _ (Just (lo,hi)) mbdef branches)
   where
     labelFor i = case M.lookup i branches of Just l -> Just l
                                              Nothing -> mbdef
-    start | lo >= 0 && lo < 2 = 0  -- See Note [Jump Table Offset]
-          | otherwise         = lo
+    start | lo >= 0 && lo < minJumpTableOffset  = 0  -- See Note [Jump Table Offset]
+          | otherwise                           = lo
 
 -- Note [Jump Table Offset]
 -- ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -223,7 +245,7 @@ createSwitchPlan ids =
   where
     signed = switchTargetsSigned ids
     (range, m, wrap) = addRange signed ids
-    pieces = concatMap breakTooSmall $ splitAtHoles 10 m
+    pieces = concatMap breakTooSmall $ splitAtHoles maxJumpTableHole m
     flatPlan = findSingleValues $ wrap $ mkFlatSwitchPlan signed (switchTargetsDefault ids) range pieces
     plan = buildTree signed $ flatPlan
 
@@ -271,13 +293,6 @@ splitAtHoles holeSize m = map (\range -> restrictMap range m) nonHoles
     (lo,_) = M.findMin m
     (hi,_) = M.findMax m
 
--- Note [When to split SwitchTargets]
--- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
---
--- TODO: What is a sensible number here? Probably at least the size of the code
--- for a comparision + a conditional jump + an addition + a relative jump
--- For now we use 10.
-
 ---
 --- Step 3: Avoid small jump tables
 ---
@@ -285,8 +300,8 @@ splitAtHoles holeSize m = map (\range -> restrictMap range m) nonHoles
 -- (into singleton maps, for now)
 breakTooSmall :: M.Map Integer a -> [M.Map Integer a]
 breakTooSmall m
-  | M.size m > 4 = [m]
-  | otherwise    = [M.singleton k v | (k,v) <- M.toList m]
+  | M.size m > minJumpTableSize = [m]
+  | otherwise                   = [M.singleton k v | (k,v) <- M.toList m]
 
 ---
 ---  Step 4: Fill in the blanks
