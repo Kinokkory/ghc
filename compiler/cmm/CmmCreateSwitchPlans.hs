@@ -57,13 +57,13 @@ implementSwitchPlan dflags scope expr = go
       = return (emptyBlock `blockJoinTail` CmmBranch l, [])
     go (JumpTable ids)
       = return (emptyBlock `blockJoinTail` CmmSwitch expr ids, [])
-    go (IfGe signed i ids1 ids2)
+    go (IfLT signed i ids1 ids2)
       = do
         (bid1, newBlocks1) <- go' ids1
         (bid2, newBlocks2) <- go' ids2
 
-        let lt | signed    = cmmSGeWord
-               | otherwise = cmmUGeWord
+        let lt | signed    = cmmSLtWord
+               | otherwise = cmmULtWord
             scrut = lt dflags expr $ CmmLit $ mkWordCLit dflags i
             lastNode = CmmCondBranch scrut bid1 bid2
             lastBlock = emptyBlock `blockJoinTail` lastNode

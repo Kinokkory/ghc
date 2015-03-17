@@ -29,7 +29,7 @@ module CmmUtils(
         cmmIndex, cmmIndexExpr, cmmLoadIndex, cmmLoadIndexW,
         cmmNegate,
         cmmULtWord, cmmUGeWord, cmmUGtWord, cmmUShrWord,
-        cmmSLtWord, cmmSGeWord,
+        cmmSLtWord,
         cmmNeWord, cmmEqWord,
         cmmOrWord, cmmAndWord,
         cmmSubWord, cmmAddWord, cmmMulWord, cmmQuotWord,
@@ -314,7 +314,7 @@ cmmLoadIndexW dflags base off ty = CmmLoad (cmmOffsetW dflags base off) ty
 
 -----------------------
 cmmULtWord, cmmUGeWord, cmmUGtWord, cmmUShrWord,
-  cmmSLtWord, cmmSGeWord,
+  cmmSLtWord,
   cmmNeWord, cmmEqWord,
   cmmOrWord, cmmAndWord,
   cmmSubWord, cmmAddWord, cmmMulWord, cmmQuotWord
@@ -328,7 +328,6 @@ cmmUGeWord dflags e1 e2 = CmmMachOp (mo_wordUGe dflags) [e1, e2]
 cmmUGtWord dflags e1 e2 = CmmMachOp (mo_wordUGt dflags) [e1, e2]
 --cmmShlWord dflags e1 e2 = CmmMachOp (mo_wordShl dflags) [e1, e2]
 cmmSLtWord dflags e1 e2 = CmmMachOp (mo_wordSLt dflags) [e1, e2]
-cmmSGeWord dflags e1 e2 = CmmMachOp (mo_wordSGe dflags) [e1, e2]
 cmmUShrWord dflags e1 e2 = CmmMachOp (mo_wordUShr dflags) [e1, e2]
 cmmAddWord dflags e1 e2 = CmmMachOp (mo_wordAdd dflags) [e1, e2]
 cmmSubWord dflags e1 e2 = CmmMachOp (mo_wordSub dflags) [e1, e2]
