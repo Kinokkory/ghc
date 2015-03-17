@@ -91,10 +91,10 @@ minJumpTableOffset = 2
 -- See Note [SwitchTargets]
 data SwitchTargets =
     SwitchTargets
-        Bool                       -- ^ Signed values
-        (Integer, Integer)         -- ^ Range
-        (Maybe Label)              -- ^ Default value
-        (M.Map Integer Label)      -- ^ The branches
+        Bool                       -- Signed values
+        (Integer, Integer)         -- Range
+        (Maybe Label)              -- Default value
+        (M.Map Integer Label)      -- The branches
     deriving (Show, Eq)
 
 -- mkSwitchTargets normalises the map a bit:
