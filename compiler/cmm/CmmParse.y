@@ -1325,11 +1325,12 @@ doSwitch mb_range scrut arms deflt
         table_entries <- mapM emitArm arms
         let table = M.fromList (concat table_entries)
 
-        -- ToDo: What to do with the mb_range?
+        dflags <- getDynFlags
+        let range = fromMaybe (0, tARGET_MAX_WORD dflags) mb_range
 
         expr <- scrut
         -- ToDo: check for out of range and jump to default if necessary
-        emit $ mkSwitch expr (mkSwitchTargets False mb_range dflt_entry table)
+        emit $ mkSwitch expr (mkSwitchTargets False range dflt_entry table)
    where
         emitArm :: ([Integer],Either BlockId (CmmParse ())) -> CmmParse [(Integer,BlockId)]
         emitArm (ints,Left blockid) = return [ (i,blockid) | i <- ints ]

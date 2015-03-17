@@ -252,10 +252,8 @@ pprNode node = pp_node <+> pp_debug
                             ]
                 | otherwise = empty
 
-            range | Just (lo,hi) <- switchTargetsRange ids
-                  = brackets $ hsep [integer lo, ptext (sLit ".."), integer hi]
-                  | otherwise
-                  = empty
+            range = brackets $ hsep [integer lo, ptext (sLit ".."), integer hi]
+              where (lo,hi) = switchTargetsRange ids
 
       CmmCall tgt k regs out res updfr_off ->
           hcat [ ptext (sLit "call"), space

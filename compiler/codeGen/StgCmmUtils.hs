@@ -466,9 +466,9 @@ emitSwitch tag_expr branches mb_deflt lo_tag hi_tag = do
 
     -- Sort the branches before calling mk_discrete_switch
     let branches_lbls' = [ (fromIntegral i, l) | (i,l) <- sortBy (comparing fst) branches_lbls ]
+    let range = (fromIntegral lo_tag, fromIntegral hi_tag)
 
-    emit $ mk_discrete_switch False tag_expr' branches_lbls'
-                       mb_deflt_lbl (Just (fromIntegral lo_tag, fromIntegral hi_tag))
+    emit $ mk_discrete_switch False tag_expr' branches_lbls' mb_deflt_lbl range
 
     emitLabel join_lbl
 
@@ -476,11 +476,11 @@ mk_discrete_switch :: Bool -- ^ Use signed comparisons
           -> CmmExpr
           -> [(Integer, BlockId)]
           -> Maybe BlockId
-          -> Maybe (Integer, Integer)
+          -> (Integer, Integer)
           -> CmmAGraph
 
 -- SINGLETON TAG RANGE: no case analysis to do
-mk_discrete_switch _ _tag_expr [(tag, lbl)] _ (Just (lo_tag, hi_tag))
+mk_discrete_switch _ _tag_expr [(tag, lbl)] _ (lo_tag, hi_tag)
   | lo_tag == hi_tag
   = ASSERT( tag == lo_tag )
     mkBranch lbl
@@ -530,6 +530,9 @@ emitCmmLitSwitch scrut  branches deflt = do
                     (MachInt64 _, _) -> True
                     _ -> False
 
+    let range | signed    = (tARGET_MIN_INT dflags, tARGET_MAX_INT dflags)
+              | otherwise = (0, tARGET_MAX_WORD dflags)
+
     if isFloatType cmm_ty
     then emit =<< mk_float_switch scrut' deflt_lbl noBound branches_lbls
     else emit $ mk_discrete_switch
@@ -537,7 +540,7 @@ emitCmmLitSwitch scrut  branches deflt = do
         scrut'
         [(litValue lit,l) | (lit,l) <- branches_lbls]
         (Just deflt_lbl)
-        Nothing
+        range
     emitLabel join_lbl
 
 -- | lower bound (inclusive), upper bound (exclusive)

@@ -92,7 +92,7 @@ minJumpTableOffset = 2
 data SwitchTargets =
     SwitchTargets
         Bool                       -- ^ Signed values
-        (Maybe (Integer, Integer)) -- ^ Range
+        (Integer, Integer)         -- ^ Range
         (Maybe Label)              -- ^ Default value
         (M.Map Integer Label)      -- ^ The branches
     deriving (Show, Eq)
@@ -101,25 +101,23 @@ data SwitchTargets =
 --  * No entries outside the range
 --  * No entries equal to the default
 --  * No default if there is a range, and all elements have explicit values 
-mkSwitchTargets :: Bool -> Maybe (Integer, Integer) -> Maybe Label -> M.Map Integer Label -> SwitchTargets
-mkSwitchTargets signed mbrange mbdef ids
-    = SwitchTargets signed mbrange mbdef' ids' 
+mkSwitchTargets :: Bool -> (Integer, Integer) -> Maybe Label -> M.Map Integer Label -> SwitchTargets
+mkSwitchTargets signed range@(lo,hi) mbdef ids
+    = SwitchTargets signed range mbdef' ids'
   where
     ids' = dropDefault $ restrict ids
     mbdef' | defaultNeeded = mbdef
            | otherwise     = Nothing
 
-    -- It drops entries outside the range, if there is a range
-    restrict | Just (lo,hi) <- mbrange = M.filterWithKey (\x _ -> lo <= x && x <= hi)
-             | otherwise               = id
+    -- Drop entries outside the range, if there is a range
+    restrict = M.filterWithKey (\x _ -> lo <= x && x <= hi)
 
-    -- It drops entries that equal the default, if there is a default
+    -- Drop entries that equal the default, if there is a default
     dropDefault | Just l <- mbdef = M.filter (/= l)
                 | otherwise       = id
 
     -- Check if the default is still needed
-    defaultNeeded | Just (lo,hi) <- mbrange = fromIntegral (M.size ids') /= hi-lo+1
-                  | otherwise = True
+    defaultNeeded = fromIntegral (M.size ids') /= hi-lo+1
 
 
 mapSwitchTargets :: (Label -> Label) -> SwitchTargets -> SwitchTargets
@@ -132,23 +130,18 @@ switchTargetsCases (SwitchTargets _ _ _ branches) = M.toList branches
 switchTargetsDefault :: SwitchTargets -> Maybe Label
 switchTargetsDefault (SwitchTargets _ _ mbdef _) = mbdef
 
-switchTargetsRange :: SwitchTargets -> Maybe (Integer, Integer)
-switchTargetsRange (SwitchTargets _ mbrange _ _) = mbrange
+switchTargetsRange :: SwitchTargets -> (Integer, Integer)
+switchTargetsRange (SwitchTargets _ range _ _) = range
 
 switchTargetsSigned :: SwitchTargets -> Bool
 switchTargetsSigned (SwitchTargets signed _ _ _) = signed
 
 -- switchTargetsToTable creates a dense jump table, usable for code generation.
--- This is not possible if there is no explicit range, so before code generation
--- all switch statements need to be transformed to one with an explicit range.
---
 -- Returns an offset to add to the value; the list is 0-based on the result
 --
 -- TODO: Is the conversion from Integral to Int fishy?
 switchTargetsToTable :: SwitchTargets -> (Int, [Maybe Label])
-switchTargetsToTable (SwitchTargets _ Nothing _mbdef _branches)
-    = pprPanic "switchTargetsToTable" empty
-switchTargetsToTable (SwitchTargets _ (Just (lo,hi)) mbdef branches)
+switchTargetsToTable (SwitchTargets _ (lo,hi) mbdef branches)
     = (fromIntegral (-start), [ labelFor i | i <- [start..hi] ])
   where
     labelFor i = case M.lookup i branches of Just l -> Just l
@@ -216,18 +209,15 @@ eqSwitchTargetWith eq (SwitchTargets signed1 range1 mbdef1 ids1) (SwitchTargets 
 -- smaller pieces suitable for code generation.
 --
 -- createSwitchPlan creates such a switch plan, in these steps:
---  1. it checks if the switch is unbounded, and takes care of the default
---     segments outside the range of the actual branches (addRange)
---  2. it splits the switch statement at segments of non-default values that
+--  1. it splits the switch statement at segments of non-default values that
 --     are too large. See splitAtHoles and Note [When to split SwitchTargets]
---  3. Too small jump tables should be avoided, so we break up smaller pieces
+--  2. Too small jump tables should be avoided, so we break up smaller pieces
 --     in breakTooSmall.
---  4. We will in the segments between those pieces with a jump to the default
+--  3. We will in the segments between those pieces with a jump to the default
 --     label (if there is one), returning a SeparatedList in mkFlatSwitchPlan
---  5. The segments outside the range from step 1 are added now.
---  6. We find replace two less-than branches by a single equal-to-test in
+--  4. We find replace two less-than branches by a single equal-to-test in
 --     findSingleValues
---  7. The thus collected pieces are assembled to a balanced binary tree.
+--  5. The thus collected pieces are assembled to a balanced binary tree.
 
 data SwitchPlan
     = Unconditionally Label 
@@ -239,50 +229,17 @@ data SwitchPlan
 type FlatSwitchPlan = SeparatedList Integer SwitchPlan
 
 createSwitchPlan :: SwitchTargets -> SwitchPlan
-createSwitchPlan ids = 
+createSwitchPlan (SwitchTargets signed mbdef range m) =
     -- pprTrace "createSwitchPlan" (text (show ids) $$ text (show (range,m)) $$ text (show pieces) $$ text (show flatPlan) $$ text (show plan)) $
     plan 
   where
-    signed = switchTargetsSigned ids
-    (range, m, wrap) = addRange signed ids
     pieces = concatMap breakTooSmall $ splitAtHoles maxJumpTableHole m
-    flatPlan = findSingleValues $ wrap $ mkFlatSwitchPlan signed (switchTargetsDefault ids) range pieces
+    flatPlan = findSingleValues $ mkFlatSwitchPlan signed range mbdef pieces
     plan = buildTree signed $ flatPlan
 
 
 ---
---- Step 1: Adding a range
----
-
--- All switch targets surviving this stage needs a range. This adds the range,
--- together with the neccessary branching.
-addRange :: Bool -> SwitchTargets ->
-    ((Integer, Integer), M.Map Integer Label, FlatSwitchPlan -> FlatSwitchPlan)
-
--- There is a range, nothing to do
-addRange _ (SwitchTargets _ (Just r) _ m) = (r, m, id)
-
--- There is no range, but also no default. We can set the range
--- to whatever is found in the map
-addRange _ (SwitchTargets _ Nothing Nothing m) = ((lo,hi), m, id)
-  where (lo,_) = M.findMin m
-        (hi,_) = M.findMax m
-
--- No range, but a default. Create a range, but also emit SwitchPlans for
--- outside the range.
-addRange signed (SwitchTargets _ Nothing (Just l) m)
-    = ( (lo,hi)
-      , m
-      , \plan -> lower_chunk plan `snocSL` (hi+1, Unconditionally l)
-      )
-  where (lo,_) = M.findMin m
-        (hi,_) = M.findMax m
-        lower_chunk = if not signed && lo == 0 then id else
-             ((Unconditionally l, lo) `consSL`)
-
-
----
---- Step 2: Splitting at large holes
+--- Step 1: Splitting at large holes
 ---
 splitAtHoles :: Integer -> M.Map Integer a -> [M.Map Integer a]
 splitAtHoles holeSize m = map (\range -> restrictMap range m) nonHoles
@@ -294,7 +251,7 @@ splitAtHoles holeSize m = map (\range -> restrictMap range m) nonHoles
     (hi,_) = M.findMax m
 
 ---
---- Step 3: Avoid small jump tables
+--- Step 2: Avoid small jump tables
 ---
 -- We do not want jump tables below a certain size. This breaks them up
 -- (into singleton maps, for now)
@@ -304,7 +261,7 @@ breakTooSmall m
   | otherwise                   = [M.singleton k v | (k,v) <- M.toList m]
 
 ---
----  Step 4: Fill in the blanks
+---  Step 3: Fill in the blanks
 ---
 
 -- A FlatSwitchPlan is a list of SwitchPlans, seperated by a integer dividing the range.
@@ -343,13 +300,13 @@ mkLeafPlan signed mbdef m
     | [(_,l)] <- M.toList m -- singleton map
     = Unconditionally l 
     | otherwise
-    = JumpTable $ mkSwitchTargets signed (Just (min,max)) mbdef m
+    = JumpTable $ mkSwitchTargets signed (min,max) mbdef m
   where
     min = fst (M.findMin m)
     max = fst (M.findMax m)
 
 ---
----  Step 5: Reduce the number of branches using ==
+---  Step 4: Reduce the number of branches using ==
 ---
 
 -- A seqence of three unconditional jumps, with the outer two pointing to the
@@ -364,7 +321,7 @@ findSingleValues (p, [])
   = (p, [])
 
 ---
----  Step 6: Actually build the tree
+---  Step 5: Actually build the tree
 ---
 
 -- Build a balanced tree from a separated list
@@ -385,9 +342,6 @@ type SeparatedList b a = (a, [(b,a)])
 
 consSL :: (a, b) -> SeparatedList b a -> SeparatedList b a
 consSL (a, b) (a', xs) = (a, (b,a'):xs)
-
-snocSL :: SeparatedList b a -> (b, a) -> SeparatedList b a
-snocSL (a', xs) (b, a) = (a', xs ++ [(b,a)])
 
 divideSL :: SeparatedList b a -> (SeparatedList b a, b, SeparatedList b a)
 divideSL (_,[]) = error "divideSL: Singleton SeparatedList"
