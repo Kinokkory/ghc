@@ -11,7 +11,7 @@ module CmmSwitch (
   ) where
 
 import Outputable
-import Compiler.Hoopl
+import Compiler.Hoopl (Label)
 
 import Data.Maybe
 import Data.List (groupBy)
