@@ -88,7 +88,9 @@ minJumpTableOffset = 2
 -- See switchTargetsToTable.
 
 
--- See Note [SwitchTargets]
+-- | A value of type SwitchTargets contains the alternatives for a 'CmmSwitch'
+-- value, and knows whether the value is signed, the possible range, an
+-- optional default value and a map from values to jump labels.
 data SwitchTargets =
     SwitchTargets
         Bool                       -- Signed values
@@ -97,10 +99,10 @@ data SwitchTargets =
         (M.Map Integer Label)      -- The branches
     deriving (Show, Eq)
 
--- mkSwitchTargets normalises the map a bit:
+-- | The smart constructr mkSwitchTargets normalises the map a bit:
 --  * No entries outside the range
 --  * No entries equal to the default
---  * No default if there is a range, and all elements have explicit values 
+--  * No default if all elements have explicit values
 mkSwitchTargets :: Bool -> (Integer, Integer) -> Maybe Label -> M.Map Integer Label -> SwitchTargets
 mkSwitchTargets signed range@(lo,hi) mbdef ids
     = SwitchTargets signed range mbdef' ids'
@@ -120,24 +122,29 @@ mkSwitchTargets signed range@(lo,hi) mbdef ids
     defaultNeeded = fromIntegral (M.size ids') /= hi-lo+1
 
 
+-- | Changes all labels mentioned in the SwitchTargets value
 mapSwitchTargets :: (Label -> Label) -> SwitchTargets -> SwitchTargets
 mapSwitchTargets f (SwitchTargets signed range mbdef branches)
     = SwitchTargets signed range (fmap f mbdef) (fmap f branches)
 
+-- | Returns the list of non-default branches of the SwitchTargets value
 switchTargetsCases :: SwitchTargets -> [(Integer, Label)]
 switchTargetsCases (SwitchTargets _ _ _ branches) = M.toList branches
 
+-- | Return the default label of the SwitchTargets value
 switchTargetsDefault :: SwitchTargets -> Maybe Label
 switchTargetsDefault (SwitchTargets _ _ mbdef _) = mbdef
 
+-- | Return the range of the SwitchTargets value
 switchTargetsRange :: SwitchTargets -> (Integer, Integer)
 switchTargetsRange (SwitchTargets _ range _ _) = range
 
+-- | Return whether this is used for a signed value
 switchTargetsSigned :: SwitchTargets -> Bool
 switchTargetsSigned (SwitchTargets signed _ _ _) = signed
 
--- switchTargetsToTable creates a dense jump table, usable for code generation.
--- Returns an offset to add to the value; the list is 0-based on the result
+-- | switchTargetsToTable creates a dense jump table, usable for code generation.
+-- Returns an offset to add to the value; the list is 0-based on the result.
 -- The conversion from Integer to Int is a bit of a wart, but works due to
 -- wrap-around arithmetic (as verified by the CmmSwitchTest test case).
 switchTargetsToTable :: SwitchTargets -> (Int, [Maybe Label])
@@ -174,6 +181,7 @@ switchTargetsToTable (SwitchTargets _ (lo,hi) mbdef branches)
 --             .quad   _c20q
 --             .quad   _c20r
 
+-- | The list of all labels occuring in the SwitchTargets value.
 switchTargetsToList :: SwitchTargets -> [Label]
 switchTargetsToList (SwitchTargets _ _ mbdef branches)
     = maybeToList mbdef ++ M.elems branches
@@ -187,6 +195,7 @@ switchTargetsFallThrough (SwitchTargets _ _ mbdef branches) = (groups, mbdef)
              groupBy ((==) `on` snd) $
              M.toList branches
 
+-- | Custom equality helper, needed for "CmmCommonBlockElim"
 eqSwitchTargetWith :: (Label -> Label -> Bool) -> SwitchTargets -> SwitchTargets -> Bool
 eqSwitchTargetWith eq (SwitchTargets signed1 range1 mbdef1 ids1) (SwitchTargets signed2 range2 mbdef2 ids2) =
     signed1 == signed2 && range1 == range2 && goMB mbdef1 mbdef2 && goList (M.toList ids1) (M.toList ids2)
@@ -202,6 +211,15 @@ eqSwitchTargetWith eq (SwitchTargets signed1 range1 mbdef1 ids1) (SwitchTargets 
 -- Code generation for Switches
 
 
+-- | A SwitchPlan abstractly descries how a Switch statement ought to be
+-- implemented. See Note [createSwitchPlan]
+data SwitchPlan
+    = Unconditionally Label
+    | IfEqual Integer Label SwitchPlan
+    | IfLT Bool Integer SwitchPlan SwitchPlan
+    | JumpTable SwitchTargets
+  deriving Show
+--
 -- Note [createSwitchPlan]
 -- ~~~~~~~~~~~~~~~~~~~~~~~
 --
@@ -219,15 +237,11 @@ eqSwitchTargetWith eq (SwitchTargets signed1 range1 mbdef1 ids1) (SwitchTargets 
 --     findSingleValues
 --  5. The thus collected pieces are assembled to a balanced binary tree.
 
-data SwitchPlan
-    = Unconditionally Label 
-    | IfEqual Integer Label SwitchPlan
-    | IfLT Bool Integer SwitchPlan SwitchPlan
-    | JumpTable SwitchTargets
-  deriving Show
 
 type FlatSwitchPlan = SeparatedList Integer SwitchPlan
 
+-- | This function creates a SwitchPlan from a SwitchTargets value, breaking it
+-- down into smaller pieces suitable for code generation.
 createSwitchPlan :: SwitchTargets -> SwitchPlan
 createSwitchPlan (SwitchTargets signed mbdef range m) =
     -- pprTrace "createSwitchPlan" (text (show ids) $$ text (show (range,m)) $$ text (show pieces) $$ text (show flatPlan) $$ text (show plan)) $

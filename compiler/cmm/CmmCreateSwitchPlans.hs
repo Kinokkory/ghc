@@ -26,6 +26,8 @@ import DynFlags
 -- SwitchTargets, a data type exported abstractly by CmmSwitch.
 --
 
+-- | Traverses the 'CmmGraph', making sure that 'CmmSwitch' are suitable for
+-- code generation.
 cmmCreateSwitchPlans :: DynFlags -> CmmGraph -> UniqSM CmmGraph
 cmmCreateSwitchPlans dflags g = do
     blocks' <- concat `fmap` mapM (visitSwitches dflags) (toBlockList g)

@@ -271,6 +271,8 @@ isZeroLit (MachFloat  0) = True
 isZeroLit (MachDouble 0) = True
 isZeroLit _              = False
 
+-- | Returns the 'Integer' contained in the 'Literal', for when that makes
+-- sense, i.e. for 'Char', 'Int', 'Word' and 'LitInteger'.
 litValue  :: Literal -> Integer
 litValue (MachChar   c) = toInteger $ ord c
 litValue (MachInt    i) = i
