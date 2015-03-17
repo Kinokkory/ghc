@@ -138,8 +138,8 @@ switchTargetsSigned (SwitchTargets signed _ _ _) = signed
 
 -- switchTargetsToTable creates a dense jump table, usable for code generation.
 -- Returns an offset to add to the value; the list is 0-based on the result
---
--- TODO: Is the conversion from Integral to Int fishy?
+-- The conversion from Integer to Int is a bit of a wart, but works due to
+-- wrap-around arithmetic (as verified by the CmmSwitchTest test case).
 switchTargetsToTable :: SwitchTargets -> (Int, [Maybe Label])
 switchTargetsToTable (SwitchTargets _ (lo,hi) mbdef branches)
     = (fromIntegral (-start), [ labelFor i | i <- [start..hi] ])
