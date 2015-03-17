@@ -216,7 +216,7 @@ eqSwitchTargetWith eq (SwitchTargets signed1 range1 mbdef1 ids1) (SwitchTargets 
 data SwitchPlan
     = Unconditionally Label
     | IfEqual Integer Label SwitchPlan
-    | IfLT Bool Integer SwitchPlan SwitchPlan
+    | IfGe Bool Integer SwitchPlan SwitchPlan
     | JumpTable SwitchTargets
   deriving Show
 --
@@ -341,7 +341,7 @@ findSingleValues (p, [])
 -- Build a balanced tree from a separated list
 buildTree :: Bool -> FlatSwitchPlan -> SwitchPlan
 buildTree _ (p,[]) = p
-buildTree signed sl = IfLT signed m (buildTree signed sl1) (buildTree signed sl2)
+buildTree signed sl = IfGe signed m (buildTree signed sl2) (buildTree signed sl1)
   where 
     (sl1, m, sl2) = divideSL sl
 
