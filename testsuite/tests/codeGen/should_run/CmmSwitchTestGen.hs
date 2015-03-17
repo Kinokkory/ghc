@@ -4,6 +4,7 @@
 
 import qualified Data.Set as S
 import Data.Word
+import Data.List
 
 output :: Integer -> Integer
 output n = n`div`2 + 42
@@ -34,11 +35,11 @@ genSwitch (name, signed, values) = unlines $
 
 genCheck :: Spec -> String
 genCheck (name, signed, values) = unlines $
-  [ checkName name ++ " :: IO ()" ] ++
-  [ checkName name ++ " = do " ] ++
-  [ "  let r = " ++ con signed ++ " (" ++ name ++ " " ++ primLit signed v ++ ") in " ++ 
-    "unless (r == " ++ show (f v) ++ ") $ putStrLn $ \"ERR: " ++ name ++ " (" ++ primLit signed v ++ ") is \" ++ show r ++ \" and not " ++ show (f v) ++ "\""
-  | v <- checkValues]
+  [ checkName name ++ " :: IO ()"
+  , checkName name ++ " = forM_ [" ++ pairs ++ "] $ \\(" ++ con signed ++ " i,o) -> do"
+  , "   let r = " ++ con signed ++ " (" ++ name ++ " i)"
+  , "   unless (r == o) $ putStrLn $ \"ERR: " ++ name ++ " (\" ++ show (" ++ con signed ++ " i)++ \") is \" ++ show r ++ \" and not \" ++ show o ++\".\""
+  ]
   where
     f x | x `S.member` range = output x
         | otherwise          = def
@@ -46,6 +47,7 @@ genCheck (name, signed, values) = unlines $
     checkValues = S.toList $ S.fromList $
         [ v' | v <- values, v' <- [v-1,v,v+1],
                if signed then v' >= minS && v' <= maxS else v' >= minU && v' <= maxU ]
+    pairs = intercalate ", " ["(" ++ show v ++ "," ++ show (f v) ++ ")" | v <- checkValues ]
 
 checkName :: String -> String
 checkName f = f ++ "_check"
@@ -55,8 +57,9 @@ genMain specs = unlines $ "main = do" : [ "    " ++ checkName n | (n,_,_) <- spe
 
 genMod :: [Spec] -> String
 genMod specs = unlines $
-    "{-# LANGUAGE MagicHash #-}" :
-    "import Control.Monad (unless)" :
+    "-- This file is generated from CmmSwitchGen!" :
+    "{-# LANGUAGE MagicHash, NegativeLiterals #-}" :
+    "import Control.Monad (unless, forM_)" :
     "import GHC.Exts" :
     map genSwitch specs ++
     map genCheck specs ++
