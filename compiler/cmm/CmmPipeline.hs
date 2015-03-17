@@ -74,8 +74,7 @@ cpsTop hsc_env proc =
 
        g <- {-# SCC "createSwitchPlans" #-}
             runUniqSM $ cmmCreateSwitchPlans dflags g
-       dump Opt_D_dump_cmm_cfg "Post switch plan" g
-       -- TODO: dump Opt_D_dump_cmm_sp "Layout Stack" g
+       dump Opt_D_dump_cmm_switch "Post switch plan" g
 
        ----------- Proc points -------------------------------------------------
        let call_pps = {-# SCC "callProcPoints" #-} callProcPoints g
