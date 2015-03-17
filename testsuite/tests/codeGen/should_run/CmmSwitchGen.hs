@@ -37,8 +37,15 @@ genCheck (name, signed, values) = unlines $
   [ checkName name ++ " :: IO ()" ] ++
   [ checkName name ++ " = do " ] ++
   [ "  let r = " ++ con signed ++ " (" ++ name ++ " " ++ primLit signed v ++ ") in " ++ 
-    "unless (r == " ++ show (output v) ++ ") $ putStrLn $ \"ERR: " ++ name ++ " (" ++ primLit signed v ++ ") is \" ++ show r ++ \" and not " ++ show (output v) ++ "\""
-  | v <- values]
+    "unless (r == " ++ show (f v) ++ ") $ putStrLn $ \"ERR: " ++ name ++ " (" ++ primLit signed v ++ ") is \" ++ show r ++ \" and not " ++ show (f v) ++ "\""
+  | v <- checkValues]
+  where
+    f x | x `S.member` range = output x
+        | otherwise          = def
+    range = S.fromList values
+    checkValues = S.toList $ S.fromList $
+        [ v' | v <- values, v' <- [v-1,v,v+1],
+               if signed then v' >= minS && v' <= maxS else v' >= minU && v' <= maxU ]
 
 checkName :: String -> String
 checkName f = f ++ "_check"
@@ -63,11 +70,15 @@ signedChecks :: [(Bool, [Integer])]
 signedChecks = map (True,)
     [ [1..10]
     , [0..10]
-    , [-1..10]
     , [1..3]
     , [1..4]
     , [1..5]
+    , [-1..10]
+    , [-10..10]
+    , [-20.. -10]++[0..10]
+    , [-20.. -10]++[1..10]
     , [minS,0,maxS]
+    , [maxS-10 .. maxS]
     , [minS..minS+10]++[maxS-10 .. maxS]
     ]
 
@@ -79,7 +90,22 @@ maxS = fromIntegral (maxBound :: Int)
 
 
 unsignedChecks :: [(Bool, [Integer])]
-unsignedChecks = map (False,) [
+unsignedChecks = map (False,)
+    [ [0..10]
+    , [1..10]
+    , [0]
+    , [0..1]
+    , [0..2]
+    , [0..3]
+    , [0..4]
+    , [1]
+    , [1..2]
+    , [1..3]
+    , [1..4]
+    , [1..5]
+    , [minU,maxU]
+    , [maxU-10 .. maxU]
+    , [minU..minU+10]++[maxU-10 .. maxU]
     ]
 
 names :: [String]
