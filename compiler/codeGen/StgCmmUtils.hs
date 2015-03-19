@@ -523,6 +523,7 @@ emitCmmLitSwitch scrut  branches deflt = do
 
     dflags <- getDynFlags
     let cmm_ty = cmmExprType dflags scrut
+        rep = typeWidth cmm_ty
 
     -- We find the necessary type information in the literals in the branches
     let signed = case head branches of
@@ -534,7 +535,7 @@ emitCmmLitSwitch scrut  branches deflt = do
               | otherwise = (0, tARGET_MAX_WORD dflags)
 
     if isFloatType cmm_ty
-    then emit =<< mk_float_switch scrut' deflt_lbl noBound branches_lbls
+    then emit =<< mk_float_switch rep scrut' deflt_lbl noBound branches_lbls
     else emit $ mk_discrete_switch
         signed
         scrut'
@@ -549,25 +550,23 @@ type LitBound = (Maybe Literal, Maybe Literal)
 noBound :: LitBound
 noBound = (Nothing, Nothing)
 
-mk_float_switch :: CmmExpr -> BlockId
+mk_float_switch :: Width -> CmmExpr -> BlockId
               -> LitBound
               -> [(Literal,BlockId)]
               -> FCode CmmAGraph
-mk_float_switch scrut deflt _bounds [(lit,blk)]
+mk_float_switch rep scrut deflt _bounds [(lit,blk)]
   = do dflags <- getDynFlags
        return $ mkCbranch (cond dflags) deflt blk
   where
     cond dflags = CmmMachOp ne [scrut, CmmLit cmm_lit]
       where
         cmm_lit = mkSimpleLit dflags lit
-        cmm_ty  = cmmLitType dflags cmm_lit
-        rep     = typeWidth cmm_ty
         ne      = MO_F_Ne rep
 
-mk_float_switch scrut deflt_blk_id (lo_bound, hi_bound) branches
+mk_float_switch rep scrut deflt_blk_id (lo_bound, hi_bound) branches
   = do dflags <- getDynFlags
-       lo_blk <- mk_float_switch scrut deflt_blk_id bounds_lo lo_branches
-       hi_blk <- mk_float_switch scrut deflt_blk_id bounds_hi hi_branches
+       lo_blk <- mk_float_switch rep scrut deflt_blk_id bounds_lo lo_branches
+       hi_blk <- mk_float_switch rep scrut deflt_blk_id bounds_hi hi_branches
        mkCmmIfThenElse (cond dflags) lo_blk hi_blk
   where
     (lo_branches, mid_lit, hi_branches) = divideBranches branches
@@ -578,8 +577,6 @@ mk_float_switch scrut deflt_blk_id (lo_bound, hi_bound) branches
     cond dflags = CmmMachOp lt [scrut, CmmLit cmm_lit]
       where
         cmm_lit = mkSimpleLit dflags mid_lit
-        cmm_ty  = cmmLitType dflags cmm_lit
-        rep     = typeWidth cmm_ty
         lt      = MO_F_Lt rep
 
 
