@@ -11,7 +11,7 @@ import Cmm
 import CmmLint
 import CmmBuildInfoTables
 import CmmCommonBlockElim
-import CmmCreateSwitchPlans
+import CmmImplementSwitchPlans
 import CmmProcPoint
 import CmmContFlowOpt
 import CmmLayoutStack
@@ -73,7 +73,7 @@ cpsTop hsc_env proc =
        -- elimCommonBlocks
 
        g <- {-# SCC "createSwitchPlans" #-}
-            runUniqSM $ cmmCreateSwitchPlans dflags g
+            runUniqSM $ cmmImplementSwitchPlans dflags g
        dump Opt_D_dump_cmm_switch "Post switch plan" g
 
        ----------- Proc points -------------------------------------------------

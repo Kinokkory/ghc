@@ -197,7 +197,7 @@ Library
         CmmPipeline
         CmmCallConv
         CmmCommonBlockElim
-        CmmCreateSwitchPlans
+        CmmImplementSwitchPlans
         CmmContFlowOpt
         CmmExpr
         CmmInfo

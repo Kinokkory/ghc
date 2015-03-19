@@ -494,7 +494,7 @@ mk_discrete_switch _ _tag_expr [(_tag,lbl)] Nothing _
         -- In that situation we can be sure the (:) case
         -- can't happen, so no need to test
 
--- SOMETHING MORE COMPLICATED: defer to CmmCreateSwitchPlans
+-- SOMETHING MORE COMPLICATED: defer to CmmImplementSwitchPlans
 -- See Note [Cmm Switches, the general plan] in CmmSwitch
 mk_discrete_switch signed tag_expr branches mb_deflt range
   = mkSwitch tag_expr $ mkSwitchTargets signed range mb_deflt (M.fromList branches)

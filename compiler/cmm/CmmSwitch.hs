@@ -32,7 +32,7 @@ import qualified Data.Map as M
 --  * The Stg → Cmm transformation creates a single `SwitchTargets` in
 --    emitSwitch and emitCmmLitSwitch in StgCmmUtils.hs.
 --    At this stage, they are unsuitable for code generation.
---  * A dedicated Cmm transformation (CmmCreateSwitchPlans) replaces these
+--  * A dedicated Cmm transformation (CmmImplementSwitchPlans) replaces these
 --    switch statements with code that is suitable for code generation, i.e.
 --    a nice balanced tree of decisions with dense jump tables in the leafs.
 --    The actual planning of this tree is performed in pure code in createSwitchPlan
@@ -40,11 +40,11 @@ import qualified Data.Map as M
 --  * The actual code generation will not do any further processing and
 --    implement each CmmSwitch with a jump tables.
 --
--- When compiling to LLVM or C, CmmCreateSwitchPlans leaves the switch
+-- When compiling to LLVM or C, CmmImplementSwitchPlans leaves the switch
 -- statements alone, as we can turn a SwitchTargets value into a nice
 -- switch-statement in LLVM resp. C, and leave the rest to the compiler.
 --
--- See Note [CmmSwitch vs. CmmCreateSwitchPlans] why the two module are
+-- See Note [CmmSwitch vs. CmmImplementSwitchPlans] why the two module are
 -- separated.
 
 -----------------------------------------------------------------------------
@@ -393,23 +393,23 @@ reassocTuples initial [] last
 reassocTuples initial ((a,b):tuples) last
     = (initial,a) : reassocTuples b tuples last
   
--- Note [CmmSwitch vs. CmmCreateSwitchPlans]
+-- Note [CmmSwitch vs. CmmImplementSwitchPlans]
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 -- I (Joachim) separated the two somewhat closely related modules
 --
 --  - CmmSwitch, which provides the CmmSwitchTargets type and contains the strategy
 --    for implementing a Cmm switch (createSwitchPlan), and
---  - CmmCreateSwitchPlans, which contains the actuall Cmm graph modification,
+--  - CmmImplementSwitchPlans, which contains the actuall Cmm graph modification,
 --
 -- for these reasons:
 --
 --  * CmmSwitch is very low in the dependency tree, i.e. does not depend on any
 --    GHC specific modules at all (with the exception of Output and Hoople
---    (Literal)). CmmCreateSwitchPlans is the Cmm transformation and hence very
+--    (Literal)). CmmImplementSwitchPlans is the Cmm transformation and hence very
 --    high in the dependency tree.
 --  * CmmSwitch provides the CmmSwitchTargets data type, which is abstract, but
 --    used in CmmNodes.
 --  * Because CmmSwitch is low in the dependency tree, the separation allows
 --    for more parallelism when building GHC.
 --  * The interaction between the modules is very explicit and easy to
---    understande, due to the small and simple interface.
+--    understand, due to the small and simple interface.

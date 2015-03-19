@@ -1,6 +1,6 @@
 {-# LANGUAGE GADTs #-}
-module CmmCreateSwitchPlans
-  ( cmmCreateSwitchPlans
+module CmmImplementSwitchPlans
+  ( cmmImplementSwitchPlans
   )
 where
 
@@ -28,8 +28,8 @@ import DynFlags
 
 -- | Traverses the 'CmmGraph', making sure that 'CmmSwitch' are suitable for
 -- code generation.
-cmmCreateSwitchPlans :: DynFlags -> CmmGraph -> UniqSM CmmGraph
-cmmCreateSwitchPlans dflags g
+cmmImplementSwitchPlans :: DynFlags -> CmmGraph -> UniqSM CmmGraph
+cmmImplementSwitchPlans dflags g
     | targetSupportsSwitch (hscTarget dflags) = return g
     | otherwise = do
     blocks' <- concat `fmap` mapM (visitSwitches dflags) (toBlockList g)
