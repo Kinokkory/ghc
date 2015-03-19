@@ -29,7 +29,9 @@ import DynFlags
 -- | Traverses the 'CmmGraph', making sure that 'CmmSwitch' are suitable for
 -- code generation.
 cmmCreateSwitchPlans :: DynFlags -> CmmGraph -> UniqSM CmmGraph
-cmmCreateSwitchPlans dflags g = do
+cmmCreateSwitchPlans dflags g
+    | targetSupportsSwitch (hscTarget dflags) = return g
+    | otherwise = do
     blocks' <- concat `fmap` mapM (visitSwitches dflags) (toBlockList g)
     return $ ofBlockList (g_entry g) blocks'
 

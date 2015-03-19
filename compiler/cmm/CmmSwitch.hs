@@ -7,10 +7,12 @@ module CmmSwitch (
      switchTargetsToList, eqSwitchTargetWith,
 
      SwitchPlan(..),
+     targetSupportsSwitch,
      createSwitchPlan,
   ) where
 
 import Outputable
+import DynFlags
 import Compiler.Hoopl (Label)
 
 import Data.Maybe
@@ -242,6 +244,13 @@ data SwitchPlan
 
 
 type FlatSwitchPlan = SeparatedList Integer SwitchPlan
+
+-- | Does the target support switch out of the box? Then leave this to the
+-- target!
+targetSupportsSwitch :: HscTarget -> Bool
+targetSupportsSwitch HscC = True
+targetSupportsSwitch HscLlvm = True
+targetSupportsSwitch _ = False
 
 -- | This function creates a SwitchPlan from a SwitchTargets value, breaking it
 -- down into smaller pieces suitable for code generation.
