@@ -41,6 +41,9 @@ import qualified Data.Map as M
 -- When compiling to LLVM or C, CmmCreateSwitchPlans leaves the switch
 -- statements alone, as we can turn a SwitchTargets value into a nice
 -- switch-statement in LLVM resp. C, and leave the rest to the compiler.
+--
+-- See Note [CmmSwitch vs. CmmCreateSwitchPlans] why the two module are
+-- separated.
 
 -----------------------------------------------------------------------------
 -- Magic Constants
@@ -379,3 +382,23 @@ reassocTuples initial [] last
 reassocTuples initial ((a,b):tuples) last
     = (initial,a) : reassocTuples b tuples last
   
+-- Note [CmmSwitch vs. CmmCreateSwitchPlans]
+-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+-- I (Joachim) separated the two somewhat closely related modules
+--
+--  - CmmSwitch, which provides the CmmSwitchTargets type and contains the strategy
+--    for implementing a Cmm switch (createSwitchPlan), and
+--  - CmmCreateSwitchPlans, which contains the actuall Cmm graph modification,
+--
+-- for these reasons:
+--
+--  * CmmSwitch is very low in the dependency tree, i.e. does not depend on any
+--    GHC specific modules at all (with the exception of Output and Hoople
+--    (Literal)). CmmCreateSwitchPlans is the Cmm transformation and hence very
+--    high in the dependency tree.
+--  * CmmSwitch provides the CmmSwitchTargets data type, which is abstract, but
+--    used in CmmNodes.
+--  * Because CmmSwitch is low in the dependency tree, the separation allows
+--    for more parallelism when building GHC.
+--  * The interaction between the modules is very explicit and easy to
+--    understande, due to the small and simple interface.
