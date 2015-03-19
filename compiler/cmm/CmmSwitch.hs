@@ -56,9 +56,11 @@ import qualified Data.Map as M
 
 -- | Number of consecutive default values allowed in a jump table. If there are
 -- more of them, the jump tables are split.
--- Currently 10, for no particular good reason.
+--
+-- Currently 7, as it costs 7 words of additional code when a jump table is
+-- split (at least on x64, determined experimentally).
 maxJumpTableHole :: Integer
-maxJumpTableHole = 10
+maxJumpTableHole = 7
 
 -- | Minimum size of a jump table. If the number is smaller, the switch is
 -- implemented using conditionals.
