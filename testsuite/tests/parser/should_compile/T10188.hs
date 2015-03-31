@@ -11,4 +11,3 @@ type family Length (as :: [k]) :: Peano where
 type family Length' (as :: [k]) :: Peano where
   Length' ((:) a as) = Succ (Length' as)
   Length' '[]        = Zero
-
